@@ -18,7 +18,7 @@
         label="未完成养护任务"
         :value="formatNumber(overview.task.open_count)"
         unit="项"
-        :hint="`其中逾期 ${overview.task.overdue_count} 项，7 天内到期 ${overview.task.due_soon_count} 项`"
+        :hint="`其中逾期 ${overview.task.overdue_count} 项，临期 ${overview.task.due_soon_count} 项`"
         :tone="overview.task.overdue_count ? 'danger' : 'default'"
         icon="Tickets"
       />
@@ -62,24 +62,30 @@
     <div class="dashboard-columns">
       <div class="panel">
         <div class="table-toolbar">
-          <span class="panel-title">逾期未完成的养护任务</span>
+          <span class="panel-title">任务提醒（逾期与临期）</span>
           <el-link type="primary" :underline="false" @click="router.push('/tasks')">
             查看全部任务
           </el-link>
         </div>
-        <el-table :data="dashboard.overdue_tasks" size="small" empty-text="暂无逾期任务">
+        <el-table :data="dashboard.task_reminders" size="small" empty-text="暂无逾期或临期任务">
           <el-table-column prop="task_no" label="任务编号" width="150" />
-          <el-table-column label="绿地" min-width="140">
+          <el-table-column label="绿地" min-width="130">
             <template #default="{ row }">{{ row.green_space?.name || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="title" label="任务名称" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="plan_date" label="计划日期" width="110" />
-          <el-table-column label="逾期" width="80">
+          <el-table-column prop="title" label="任务名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="plan_date" label="计划日期" width="105" />
+          <el-table-column label="提醒" width="130">
             <template #default="{ row }">
-              <span class="overdue-days">{{ overdueDays(row.plan_date) }} 天</span>
+              <EnumTag group="reminder_level" :value="row.reminder_level" />
+              <span v-if="reminderDaysText(row)" class="reminder-days">{{ reminderDaysText(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="executor" label="执行班组" width="110">
+          <el-table-column label="优先级" width="80">
+            <template #default="{ row }">
+              <EnumTag group="task_priority" :value="row.priority" :label="row.priority_label" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="executor" label="执行班组" width="100">
             <template #default="{ row }">{{ row.executor || '-' }}</template>
           </el-table-column>
         </el-table>
@@ -162,7 +168,7 @@ import ChartPanel from '@/components/common/ChartPanel.vue'
 import EnumTag from '@/components/common/EnumTag.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
-import { formatArea, formatCurrency, formatHours, formatNumber, formatPercent, today } from '@/utils/format'
+import { formatArea, formatCurrency, formatHours, formatNumber, formatPercent } from '@/utils/format'
 
 import { barOption, pieOption, trendOption } from './chartOptions'
 
@@ -186,8 +192,7 @@ function emptyDashboard() {
     },
     trends: [],
     ranking: [],
-    overdue_tasks: [],
-    upcoming_tasks: [],
+    task_reminders: [],
     recent_activity: { records: [], replacements: [] },
   }
 }
@@ -226,10 +231,10 @@ const reasonChart = computed(() =>
   ),
 )
 
-function overdueDays(planDate) {
-  if (!planDate) return 0
-  const diff = new Date(today()) - new Date(planDate)
-  return Math.max(Math.round(diff / 86400000), 0)
+function reminderDaysText(row) {
+  if (row.reminder_level === 'overdue') return `逾期 ${-row.due_in_days} 天`
+  if (row.reminder_level === 'due_soon') return `${row.due_in_days} 天后到期`
+  return ''
 }
 
 async function load() {
@@ -255,8 +260,9 @@ onMounted(load)
   font-weight: 600;
 }
 
-.overdue-days {
-  color: #f56c6c;
-  font-weight: 600;
+.reminder-days {
+  margin-left: 6px;
+  color: #909399;
+  font-size: 12px;
 }
 </style>

@@ -49,9 +49,10 @@ def ranking():
 
 @bp.get("/statistics/reminders")
 def reminders():
-    """逾期与即将到期的养护任务提醒。"""
+    """任务提醒清单：逾期与临期的未办结任务，按统一提醒规则排序。"""
 
-    return ok({
-        "overdue": StatisticsService.overdue_tasks(),
-        "upcoming": StatisticsService.upcoming_tasks(),
-    })
+    try:
+        limit = int(request.args.get("limit", 10))
+    except (TypeError, ValueError):
+        limit = 10
+    return ok({"items": StatisticsService.task_reminders(min(max(limit, 1), 50))})

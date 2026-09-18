@@ -15,7 +15,8 @@
         </el-descriptions-item>
         <el-descriptions-item label="计划日期">
           {{ formatDate(detail.plan_date) }}
-          <el-tag v-if="detail.is_overdue" type="danger" size="small" effect="plain">逾期</el-tag>
+          <EnumTag v-if="detail.reminder_level && detail.reminder_level !== 'normal'"
+                   group="reminder_level" :value="detail.reminder_level" effect="plain" />
         </el-descriptions-item>
         <el-descriptions-item label="执行班组">{{ detail.executor || '-' }}</el-descriptions-item>
         <el-descriptions-item label="任务状态">

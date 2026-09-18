@@ -13,6 +13,7 @@ from ..utils.numbers import to_float
 from ..utils.sorting import parse_sort
 from .base_service import BaseService
 from .code_generator import daily_prefix
+from .task_reminder import attention_order, reminder_fields
 
 
 class MaintenanceTaskService(BaseService):
@@ -113,13 +114,19 @@ class MaintenanceTaskService(BaseService):
             qualified_count.label("qualified_count"),
         )
         query = cls._apply_filters(query, filters)
-        query = query.order_by(parse_sort(args, cls.SORTABLE, MaintenanceTask.plan_date.desc()))
+        explicit_sort = parse_sort(args, cls.SORTABLE, None)
+        if explicit_sort is not None:
+            query = query.order_by(explicit_sort)
+        else:
+            # 默认按统一提醒规则排序：紧急且临期的任务排在前面
+            query = query.order_by(*attention_order())
         return query
 
     @classmethod
     def serialize_row(cls, row):
         task, record_count, qualified_count = row
         data = task.to_dict()
+        data.update(reminder_fields(task))
         data["progress"] = {
             "record_count": record_count or 0,
             "qualified_count": qualified_count or 0,
@@ -143,6 +150,7 @@ class MaintenanceTaskService(BaseService):
             .filter(MaintenanceRecord.task_id == task.id).one()
 
         data = task.to_dict(detail=True)
+        data.update(reminder_fields(task))
         data["records"] = [item.to_dict() for item in records]
         data["progress"] = {
             "record_count": len(records),

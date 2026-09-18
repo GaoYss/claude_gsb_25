@@ -10,6 +10,7 @@ from ..models import GreenSpace, MaintenanceRecord, MaintenanceTask, PlantReplac
 from ..models.maintenance_task import OPEN_STATUSES
 from ..utils.dates import today
 from ..utils.numbers import to_float
+from .task_reminder import attention_order, reminder_fields, reminder_filter
 
 
 class StatisticsService:
@@ -65,7 +66,7 @@ class StatisticsService:
             .filter(
                 MaintenanceTask.status.in_(OPEN_STATUSES),
                 MaintenanceTask.plan_date >= current,
-                MaintenanceTask.plan_date <= current + timedelta(days=7),
+                reminder_filter(current),
             )
             .scalar()
             or 0
@@ -339,32 +340,24 @@ class StatisticsService:
         ]
 
     @staticmethod
-    def overdue_tasks(limit=10):
-        tasks = (
-            db.session.query(MaintenanceTask)
-            .filter(
-                MaintenanceTask.status.in_(OPEN_STATUSES),
-                MaintenanceTask.plan_date < today(),
-            )
-            .order_by(MaintenanceTask.plan_date.asc())
-            .limit(limit)
-            .all()
-        )
-        return [task.to_dict() for task in tasks]
+    def task_reminders(limit=10):
+        """任务提醒清单：逾期与临期的未办结任务，按统一提醒规则排序。"""
 
-    @staticmethod
-    def upcoming_tasks(limit=10):
+        reference = today()
         tasks = (
             db.session.query(MaintenanceTask)
             .filter(
                 MaintenanceTask.status.in_(OPEN_STATUSES),
-                MaintenanceTask.plan_date >= today(),
+                reminder_filter(reference),
             )
-            .order_by(MaintenanceTask.plan_date.asc())
+            .order_by(*attention_order(reference))
             .limit(limit)
             .all()
         )
-        return [task.to_dict() for task in tasks]
+        return [
+            {**task.to_dict(), **reminder_fields(task, reference)}
+            for task in tasks
+        ]
 
     @staticmethod
     def recent_activity(limit=6):
@@ -395,7 +388,6 @@ class StatisticsService:
             "distributions": StatisticsService.distributions(),
             "trends": StatisticsService.trends(months),
             "ranking": StatisticsService.green_space_ranking(),
-            "overdue_tasks": StatisticsService.overdue_tasks(),
-            "upcoming_tasks": StatisticsService.upcoming_tasks(),
+            "task_reminders": StatisticsService.task_reminders(),
             "recent_activity": StatisticsService.recent_activity(),
         }

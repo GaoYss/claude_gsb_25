@@ -29,10 +29,65 @@ def test_overdue_and_due_soon_reminders(api, make_space, make_task):
     assert overview["task"]["overdue_count"] == 1
     assert overview["task"]["due_soon_count"] == 1
 
-    reminders = api.data(api.get("/api/v1/statistics/reminders"))
-    assert len(reminders["overdue"]) == 1
-    assert reminders["overdue"][0]["is_overdue"] is True
-    assert len(reminders["upcoming"]) == 1
+    reminders = api.data(api.get("/api/v1/statistics/reminders"))["items"]
+    assert len(reminders) == 2
+    assert reminders[0]["reminder_level"] == "overdue"
+    assert reminders[0]["due_in_days"] == -3
+    assert reminders[0]["is_overdue"] is True
+    assert reminders[1]["reminder_level"] == "due_soon"
+    assert reminders[1]["due_in_days"] == 2
+
+
+def test_reminder_window_depends_on_priority(api, make_space, make_task):
+    """提醒周期按优先级区分：紧急提前 7 天、高 5 天、中 3 天、低 1 天。"""
+
+    space = make_space()
+    urgent = make_task(space=space, priority="urgent", plan_date=date.today() + timedelta(days=6))
+    high = make_task(space=space, priority="high", plan_date=date.today() + timedelta(days=6))
+    low = make_task(space=space, priority="low", plan_date=date.today() + timedelta(days=2))
+    make_task(space=space, priority="medium", plan_date=date.today() + timedelta(days=10))
+
+    items = api.data(api.get("/api/v1/statistics/reminders"))["items"]
+    # 只有紧急任务（窗口 7 天）落入提醒周期；高 5 天、低 1 天的窗口均未覆盖
+    assert {item["id"]: item["reminder_level"] for item in items} == {urgent.id: "due_soon"}
+    assert low.id not in {item["id"] for item in items}
+
+    overview = api.data(api.get("/api/v1/statistics/overview"))
+    assert overview["task"]["due_soon_count"] == 1
+
+
+def test_reminder_ordering_shared_by_list_reminders_and_dashboard(api, make_space, make_task):
+    """列表排序、提醒清单与看板排名使用同一套规则。"""
+
+    space = make_space()
+    today = date.today()
+    normal = make_task(space=space, priority="urgent", plan_date=today + timedelta(days=30))
+    due_soon = make_task(space=space, priority="low", plan_date=today + timedelta(days=1))
+    overdue_low = make_task(space=space, priority="low", plan_date=today - timedelta(days=1))
+    overdue_urgent = make_task(space=space, priority="urgent", plan_date=today - timedelta(days=1))
+    due_today = make_task(space=space, priority="medium", plan_date=today)
+    closed = make_task(space=space, priority="urgent",
+                       plan_date=today - timedelta(days=2), status="completed")
+
+    # 提醒清单：已逾期（同级按优先级）→ 今日到期 → 临期；未到期任务不进入提醒
+    expected_reminders = [overdue_urgent.id, overdue_low.id, due_today.id, due_soon.id]
+    reminders = api.data(api.get("/api/v1/statistics/reminders"))["items"]
+    assert [item["id"] for item in reminders] == expected_reminders
+
+    dashboard = api.data(api.get("/api/v1/statistics/dashboard"))
+    assert [item["id"] for item in dashboard["task_reminders"]] == expected_reminders
+
+    # 任务列表默认排序与提醒清单一致，未到期任务随后，已办结任务排在最后
+    listed = api.data(api.get("/api/v1/maintenance-tasks", page_size=50))["items"]
+    assert [item["id"] for item in listed] == expected_reminders + [normal.id, closed.id]
+
+    by_id = {item["id"]: item for item in listed}
+    assert by_id[overdue_urgent.id]["reminder_level"] == "overdue"
+    assert by_id[due_today.id]["reminder_level"] == "due_today"
+    assert by_id[due_soon.id]["reminder_level"] == "due_soon"
+    assert by_id[normal.id]["reminder_level"] == "normal"
+    assert by_id[closed.id]["reminder_level"] is None
+    assert by_id[closed.id]["due_in_days"] is None
 
 
 def test_distributions_cover_all_dimensions(api, make_task, make_replacement, make_record):
@@ -79,7 +134,7 @@ def test_dashboard_returns_all_sections(api, seeded):
     data = api.data(api.get("/api/v1/statistics/dashboard"))
     assert set(data) == {
         "overview", "distributions", "trends", "ranking",
-        "overdue_tasks", "upcoming_tasks", "recent_activity",
+        "task_reminders", "recent_activity",
     }
     assert len(data["trends"]) == 6
     assert data["recent_activity"]["records"]

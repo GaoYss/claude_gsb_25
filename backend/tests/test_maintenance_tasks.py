@@ -61,6 +61,35 @@ def test_list_includes_record_progress(api, make_task, make_record):
     assert data["items"][0]["progress"] == {"record_count": 2, "qualified_count": 1}
 
 
+def test_list_default_order_puts_urgent_and_due_soon_first(api, make_space, make_task):
+    """默认排序：提醒级别 → 计划日期 → 优先级；已办结任务排在最后。"""
+
+    space = make_space()
+    today = date.today()
+    normal = make_task(space=space, priority="low", plan_date=today + timedelta(days=30))
+    due_soon = make_task(space=space, priority="urgent", plan_date=today + timedelta(days=5))
+    overdue = make_task(space=space, priority="low", plan_date=today - timedelta(days=2))
+    closed = make_task(space=space, priority="urgent",
+                       plan_date=today - timedelta(days=1), status="completed")
+
+    items = api.data(api.get("/api/v1/maintenance-tasks", page_size=50))["items"]
+    assert [item["id"] for item in items] == [overdue.id, due_soon.id, normal.id, closed.id]
+    assert items[1]["reminder_level"] == "due_soon"
+    assert items[1]["due_in_days"] == 5
+
+
+def test_list_explicit_sort_overrides_default_order(api, make_space, make_task):
+    space = make_space()
+    older = make_task(space=space, plan_date=date(2026, 1, 10))
+    newer = make_task(space=space, plan_date=date(2026, 2, 10))
+
+    items = api.data(api.get("/api/v1/maintenance-tasks", sort="plan_date", order="asc"))["items"]
+    assert [item["id"] for item in items] == [older.id, newer.id]
+
+    items = api.data(api.get("/api/v1/maintenance-tasks", sort="plan_date", order="desc"))["items"]
+    assert [item["id"] for item in items] == [newer.id, older.id]
+
+
 def test_status_transition_records_completed_at(api, make_task):
     task = make_task()
     data = api.data(api.patch(f"/api/v1/maintenance-tasks/{task.id}/status",

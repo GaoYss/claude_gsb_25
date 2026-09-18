@@ -60,7 +60,8 @@
         <el-table-column label="计划日期" width="130">
           <template #default="{ row }">
             {{ row.plan_date }}
-            <el-tag v-if="row.is_overdue" type="danger" size="small" effect="plain">逾期</el-tag>
+            <EnumTag v-if="row.reminder_level && row.reminder_level !== 'normal'"
+                     group="reminder_level" :value="row.reminder_level" effect="plain" />
           </template>
         </el-table-column>
         <el-table-column label="优先级" width="84">

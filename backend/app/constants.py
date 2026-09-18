@@ -80,6 +80,14 @@ TASK_STATUS = EnumGroup("task_status", [
     ("cancelled", "已取消"),
 ])
 
+# 提醒级别：由任务优先级与计划日期共同推算（见 services/task_reminder.py）
+REMINDER_LEVEL = EnumGroup("reminder_level", [
+    ("overdue", "已逾期"),
+    ("due_today", "今日到期"),
+    ("due_soon", "临期"),
+    ("normal", "未到期"),
+])
+
 # ---------------------------------------------------------------- 养护记录
 QUALITY_RESULT = EnumGroup("quality_result", [
     ("qualified", "合格"),
@@ -138,6 +146,7 @@ ENUM_GROUPS = {
     "task_type": TASK_TYPE,
     "task_priority": TASK_PRIORITY,
     "task_status": TASK_STATUS,
+    "reminder_level": REMINDER_LEVEL,
     "quality_result": QUALITY_RESULT,
     "weather": WEATHER,
     "plant_category": PLANT_CATEGORY,

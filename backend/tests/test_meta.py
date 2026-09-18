@@ -17,6 +17,7 @@ def test_enums_cover_all_business_groups(api):
         "task_type",
         "task_priority",
         "task_status",
+        "reminder_level",
         "quality_result",
         "weather",
         "plant_category",
@@ -26,6 +27,7 @@ def test_enums_cover_all_business_groups(api):
     }
     assert expected.issubset(set(enums))
     assert {"value": "park", "label": "公园绿地"} in enums["green_space_type"]
+    assert {"value": "critical", "label": "紧急提醒"} in enums["reminder_level"]
 
 
 def test_unknown_api_returns_unified_404(api):

@@ -1,6 +1,6 @@
 <template>
   <div class="page">
-    <PageHeader title="养护任务登记" description="按绿地登记养护作业计划，任务状态随养护记录自动流转">
+    <PageHeader title="养护任务登记" description="按绿地登记养护作业计划，默认按紧急度（优先级 × 计划日期）排序，状态随养护记录自动流转">
       <template #actions>
         <el-button type="primary" :icon="'Plus'" @click="formDialog.open()">登记养护任务</el-button>
       </template>
@@ -66,6 +66,13 @@
         <el-table-column label="优先级" width="84">
           <template #default="{ row }">
             <EnumTag group="task_priority" :value="row.priority" :label="row.priority_label" />
+          </template>
+        </el-table-column>
+        <el-table-column label="提醒级别" width="96">
+          <template #default="{ row }">
+            <EnumTag v-if="row.reminder_level" group="reminder_level" :value="row.reminder_level"
+                     :label="row.reminder_level_label" />
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="executor" label="执行班组" width="100">

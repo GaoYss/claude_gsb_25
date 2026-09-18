@@ -10,6 +10,8 @@ from ..models import GreenSpace, MaintenanceRecord, MaintenanceTask, PlantReplac
 from ..models.maintenance_task import OPEN_STATUSES
 from ..utils.dates import today
 from ..utils.numbers import to_float
+from ..utils.urgency import REMINDER_CYCLE_DAYS
+from .task_urgency import reminder_window_condition, urgency_order_by
 
 
 class StatisticsService:
@@ -65,7 +67,7 @@ class StatisticsService:
             .filter(
                 MaintenanceTask.status.in_(OPEN_STATUSES),
                 MaintenanceTask.plan_date >= current,
-                MaintenanceTask.plan_date <= current + timedelta(days=7),
+                reminder_window_condition(current),
             )
             .scalar()
             or 0
@@ -299,6 +301,12 @@ class StatisticsService:
 
     # ------------------------------------------------------------ 榜单与提醒
     @staticmethod
+    def reminder_cycles():
+        """各优先级的提醒周期（天）：提醒清单与看板按此口径提前提醒。"""
+
+        return dict(REMINDER_CYCLE_DAYS)
+
+    @staticmethod
     def green_space_ranking(limit=5):
         replacement_quantity = (
             db.select(func.coalesce(func.sum(PlantReplacement.quantity), 0))
@@ -340,13 +348,15 @@ class StatisticsService:
 
     @staticmethod
     def overdue_tasks(limit=10):
+        """逾期未完成的任务：按统一紧急度规则排名（与任务列表、提醒清单一致）。"""
+
         tasks = (
             db.session.query(MaintenanceTask)
             .filter(
                 MaintenanceTask.status.in_(OPEN_STATUSES),
                 MaintenanceTask.plan_date < today(),
             )
-            .order_by(MaintenanceTask.plan_date.asc())
+            .order_by(*urgency_order_by())
             .limit(limit)
             .all()
         )
@@ -354,13 +364,17 @@ class StatisticsService:
 
     @staticmethod
     def upcoming_tasks(limit=10):
+        """进入提醒周期的临期任务：窗口按优先级区分（紧急 14 天 … 低 1 天）。"""
+
+        current = today()
         tasks = (
             db.session.query(MaintenanceTask)
             .filter(
                 MaintenanceTask.status.in_(OPEN_STATUSES),
-                MaintenanceTask.plan_date >= today(),
+                MaintenanceTask.plan_date >= current,
+                reminder_window_condition(current),
             )
-            .order_by(MaintenanceTask.plan_date.asc())
+            .order_by(*urgency_order_by())
             .limit(limit)
             .all()
         )
@@ -395,6 +409,7 @@ class StatisticsService:
             "distributions": StatisticsService.distributions(),
             "trends": StatisticsService.trends(months),
             "ranking": StatisticsService.green_space_ranking(),
+            "reminder_cycles": StatisticsService.reminder_cycles(),
             "overdue_tasks": StatisticsService.overdue_tasks(),
             "upcoming_tasks": StatisticsService.upcoming_tasks(),
             "recent_activity": StatisticsService.recent_activity(),

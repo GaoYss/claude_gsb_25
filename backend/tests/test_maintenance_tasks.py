@@ -61,6 +61,38 @@ def test_list_includes_record_progress(api, make_task, make_record):
     assert data["items"][0]["progress"] == {"record_count": 2, "qualified_count": 1}
 
 
+def test_list_default_sort_ranks_by_urgency(api, make_space, make_task):
+    """默认排序与提醒清单、看板排名同一套规则：紧急且临期在前，已关闭垫底。"""
+
+    space = make_space()
+    today = date.today()
+    low_future = make_task(space=space, plan_date=today + timedelta(days=30), priority="low")
+    urgent_future = make_task(space=space, plan_date=today + timedelta(days=20), priority="urgent")
+    medium_overdue = make_task(space=space, plan_date=today - timedelta(days=2), priority="medium")
+    high_soon = make_task(space=space, plan_date=today + timedelta(days=2), priority="high")
+    closed = make_task(space=space, plan_date=today - timedelta(days=1),
+                       priority="urgent", status="completed")
+
+    items = api.data(api.get("/api/v1/maintenance-tasks"))["items"]
+    assert [item["id"] for item in items] == [
+        urgent_future.id,    # 紧急：100 分
+        medium_overdue.id,   # 95 分，与下者同分时计划日期早的在前
+        high_soon.id,        # 95 分
+        low_future.id,       # 25 分
+        closed.id,           # 已关闭恒为 0 分
+    ]
+
+
+def test_list_explicit_sort_overrides_urgency_rule(api, make_space, make_task):
+    space = make_space()
+    today = date.today()
+    earlier = make_task(space=space, plan_date=today + timedelta(days=1), priority="low")
+    later = make_task(space=space, plan_date=today + timedelta(days=9), priority="urgent")
+
+    items = api.data(api.get("/api/v1/maintenance-tasks", sort="plan_date", order="desc"))["items"]
+    assert [item["id"] for item in items] == [later.id, earlier.id]
+
+
 def test_status_transition_records_completed_at(api, make_task):
     task = make_task()
     data = api.data(api.patch(f"/api/v1/maintenance-tasks/{task.id}/status",

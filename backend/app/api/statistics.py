@@ -49,9 +49,10 @@ def ranking():
 
 @bp.get("/statistics/reminders")
 def reminders():
-    """逾期与即将到期的养护任务提醒。"""
+    """逾期与临期任务提醒：临期窗口按优先级区分，排名与任务列表同一套规则。"""
 
     return ok({
+        "reminder_cycles": StatisticsService.reminder_cycles(),
         "overdue": StatisticsService.overdue_tasks(),
         "upcoming": StatisticsService.upcoming_tasks(),
     })

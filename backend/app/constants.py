@@ -80,6 +80,13 @@ TASK_STATUS = EnumGroup("task_status", [
     ("cancelled", "已取消"),
 ])
 
+# 提醒级别：由任务紧急度得分（优先级 × 计划日期）划分，见 utils/urgency.py
+REMINDER_LEVEL = EnumGroup("reminder_level", [
+    ("critical", "紧急提醒"),
+    ("important", "重点提醒"),
+    ("normal", "常规提醒"),
+])
+
 # ---------------------------------------------------------------- 养护记录
 QUALITY_RESULT = EnumGroup("quality_result", [
     ("qualified", "合格"),
@@ -138,6 +145,7 @@ ENUM_GROUPS = {
     "task_type": TASK_TYPE,
     "task_priority": TASK_PRIORITY,
     "task_status": TASK_STATUS,
+    "reminder_level": REMINDER_LEVEL,
     "quality_result": QUALITY_RESULT,
     "weather": WEATHER,
     "plant_category": PLANT_CATEGORY,

@@ -18,7 +18,7 @@
         label="未完成养护任务"
         :value="formatNumber(overview.task.open_count)"
         unit="项"
-        :hint="`其中逾期 ${overview.task.overdue_count} 项，7 天内到期 ${overview.task.due_soon_count} 项`"
+        :hint="`其中逾期 ${overview.task.overdue_count} 项，提醒周期内 ${overview.task.due_soon_count} 项`"
         :tone="overview.task.overdue_count ? 'danger' : 'default'"
         icon="Tickets"
       />
@@ -77,6 +77,34 @@
           <el-table-column label="逾期" width="80">
             <template #default="{ row }">
               <span class="overdue-days">{{ overdueDays(row.plan_date) }} 天</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="提醒级别" width="90">
+            <template #default="{ row }">
+              <EnumTag group="reminder_level" :value="row.reminder_level" :label="row.reminder_level_label" />
+            </template>
+          </el-table-column>
+          <el-table-column prop="executor" label="执行班组" width="110">
+            <template #default="{ row }">{{ row.executor || '-' }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="panel">
+        <div class="table-toolbar">
+          <span class="panel-title">临期任务提醒</span>
+          <span class="summary-text">{{ reminderCycleHint }}</span>
+        </div>
+        <el-table :data="dashboard.upcoming_tasks" size="small" empty-text="暂无进入提醒周期的任务">
+          <el-table-column prop="task_no" label="任务编号" width="150" />
+          <el-table-column label="绿地" min-width="140">
+            <template #default="{ row }">{{ row.green_space?.name || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="title" label="任务名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="plan_date" label="计划日期" width="110" />
+          <el-table-column label="提醒级别" width="90">
+            <template #default="{ row }">
+              <EnumTag group="reminder_level" :value="row.reminder_level" :label="row.reminder_level_label" />
             </template>
           </el-table-column>
           <el-table-column prop="executor" label="执行班组" width="110">
@@ -162,11 +190,13 @@ import ChartPanel from '@/components/common/ChartPanel.vue'
 import EnumTag from '@/components/common/EnumTag.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import StatCard from '@/components/common/StatCard.vue'
+import { useMetaStore } from '@/stores/meta'
 import { formatArea, formatCurrency, formatHours, formatNumber, formatPercent, today } from '@/utils/format'
 
 import { barOption, pieOption, trendOption } from './chartOptions'
 
 const router = useRouter()
+const meta = useMetaStore()
 const loading = ref(false)
 const dashboard = ref(emptyDashboard())
 
@@ -186,6 +216,7 @@ function emptyDashboard() {
     },
     trends: [],
     ranking: [],
+    reminder_cycles: {},
     overdue_tasks: [],
     upcoming_tasks: [],
     recent_activity: { records: [], replacements: [] },
@@ -193,6 +224,16 @@ function emptyDashboard() {
 }
 
 const overview = computed(() => dashboard.value.overview)
+
+// 提醒周期说明：按优先级字典顺序拼接（低 1 天 / 中 3 天 / 高 7 天 / 紧急 14 天）
+const reminderCycleHint = computed(() => {
+  const cycles = dashboard.value.reminder_cycles || {}
+  const parts = meta
+    .options('task_priority')
+    .filter((item) => cycles[item.value] != null)
+    .map((item) => `${item.label} ${cycles[item.value]} 天`)
+  return parts.length ? `提醒周期：${parts.join(' / ')}` : '提醒周期按优先级区分'
+})
 
 const trendChart = computed(() => trendOption(dashboard.value.trends || []))
 
@@ -241,7 +282,10 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  meta.ensureLoaded()
+  load()
+})
 </script>
 
 <style scoped>

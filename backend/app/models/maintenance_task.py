@@ -1,8 +1,9 @@
 """养护任务模型。"""
 
-from ..constants import TASK_PRIORITY, TASK_STATUS, TASK_TYPE
+from ..constants import REMINDER_LEVEL, TASK_PRIORITY, TASK_STATUS, TASK_TYPE
 from ..extensions import db
 from ..utils.dates import format_date, format_datetime, today
+from ..utils.urgency import reminder_level
 from .mixins import TimestampMixin
 
 OPEN_STATUSES = ("pending", "in_progress")
@@ -41,6 +42,7 @@ class MaintenanceTask(TimestampMixin, db.Model):
         return self.status in OPEN_STATUSES and self.plan_date < today()
 
     def to_dict(self, detail=False):
+        level = reminder_level(self.priority, self.plan_date, self.status in OPEN_STATUSES)
         data = {
             "id": self.id,
             "task_no": self.task_no,
@@ -57,6 +59,8 @@ class MaintenanceTask(TimestampMixin, db.Model):
             "status_label": TASK_STATUS.label(self.status),
             "completed_at": format_datetime(self.completed_at),
             "is_overdue": self.is_overdue,
+            "reminder_level": level,
+            "reminder_level_label": REMINDER_LEVEL.label(level) if level else None,
             "created_at": format_datetime(self.created_at),
             "updated_at": format_datetime(self.updated_at),
         }

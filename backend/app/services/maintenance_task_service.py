@@ -13,6 +13,7 @@ from ..utils.numbers import to_float
 from ..utils.sorting import parse_sort
 from .base_service import BaseService
 from .code_generator import daily_prefix
+from .task_urgency import urgency_order_by
 
 
 class MaintenanceTaskService(BaseService):
@@ -113,7 +114,12 @@ class MaintenanceTaskService(BaseService):
             qualified_count.label("qualified_count"),
         )
         query = cls._apply_filters(query, filters)
-        query = query.order_by(parse_sort(args, cls.SORTABLE, MaintenanceTask.plan_date.desc()))
+        # 默认按紧急度规则排序（与提醒清单、看板排名同一套规则），显式 sort 参数优先
+        sort = parse_sort(args, cls.SORTABLE, None)
+        if sort is not None:
+            query = query.order_by(sort)
+        else:
+            query = query.order_by(*urgency_order_by())
         return query
 
     @classmethod
